@@ -1,6 +1,6 @@
 # 🚀 AAVE TVL vs. Price Correlation Dashboard (Quant Research)
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://aave-tvl-price-correlation-analysis.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://aave-tvl-price.streamlit.app/#aave-tvl-vs-price-correlation-analysis)
 
  An interactive Streamlit application testing the daily correlation between Aave protocol's Total Value Locked (TVL) and the AAVE token price. This project utilizes web scraping, API data, and quantitative analysis techniques to uncover potential Alpha signals in the DeFi space.
 

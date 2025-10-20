@@ -1,0 +1,37 @@
+name: Daily Data Update and Commit
+
+on:
+  schedule:
+    - cron: '0 3 * * *' 
+  workflow_dispatch:
+
+jobs:
+  run_scraper_and_commit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run the scraper script
+        run: |
+          python scraper.py
+
+      - name: Commit and push changes (the updated CSV file)
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          file_pattern: 'aave_tvl_vs_price_merged.csv' 
+          commit_message: "Automated: Update AAVE TVL and Price data"
+          branch: main

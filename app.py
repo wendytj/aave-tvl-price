@@ -4,93 +4,205 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 
-st.set_page_config(layout="wide", page_title="AAVE TVL vs Price Analysis")
+import cloudscraper
+from bs4 import BeautifulSoup
+import asyncio
+import json
+import warnings
+import urllib3
+import pandas as pd
+import ccxt.async_support as ccxt
 
-st.markdown("""
-<style>
-div.stRadio > div[role="radiogroup"] {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    padding: 0;
-    border: 1px solid #444;
-    border-radius: 0.5rem;
-    overflow: hidden;
-    width: fit-content; 
-    margin: 0 auto; 
-}
-            
-div.stRadio > div[role="radiogroup"] > label {
-    display: flex !important;      
-    align-items: center !important;  
-    justify-content: center !important;
+async def fetch_price_data(ticker='AAVE/USDT', start_date_str='2020-01-01'): 
+    print(f"Fetching ALL historical {ticker} price data from Gate.io since {start_date_str}...")
     
-    padding: 0.5rem 1rem;
-    margin: 0;
-    border: none;
-    border-right: 1px solid #444;
-    background-color: transparent;
-    color: #CCC;
-    cursor: pointer;
-    transition: background-color 0.3s ease, color 0.3s ease;   
-}
-            
-div.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"] > div{
-    display: flex;
-    align-items: center !important;  
-    justify-content: center !important;
-}
-            
-div.stRadio > div[role="radiogroup"] > label:last-child {
-    border-right: none;
-}
-
-div.stRadio > div[role="radiogroup"] > label > div[data-testid="stMarkdownContainer"] > p {
-    margin-bottom: 0 !important; 
-}
-            
-div.stRadio > div[role="radiogroup"] > label[aria-checked="true"] {
-    background-color: #007bff !important; 
-    color: white !important;
-}
-            
-div.stRadio > div[role="radiogroup"] > label:hover {
-    background-color: #333;
-}
-            
-div.stRadio > div > label > div:first-child {
-    display: none !important;
-}
-            
-div.stRadio input[type="radio"] {
-    display: none !important;
-}
-
-div.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"]:has(input:checked) {
-    background-color: #007bff !important;
-    color: white !important;
-    border-color: #007bff !important; 
-}                     
-</style>
-""", unsafe_allow_html=True)
-
-@st.cache_data 
-def load_data(filepath="aave_tvl_vs_price_merged.csv"):
-    """Loads data from CSV and converts 'date' column."""
+    gateio = ccxt.gateio()
+    
+    all_ohlcv = []
+    since_timestamp = int(datetime.strptime(start_date_str, '%Y-%m-%d').timestamp() * 1000)
+    limit = 1000 
     try:
-        df = pd.read_csv(filepath)
-        df['date'] = pd.to_datetime(df['date'])
-        df = df.sort_values(by='date').reset_index(drop=True)
-        df['tvl'] = pd.to_numeric(df['tvl'], errors='coerce')
-        df['price'] = pd.to_numeric(df['price'], errors='coerce')
-        df.dropna(subset=['tvl', 'price'], inplace=True)
-        return df
-    except FileNotFoundError:
-        st.error(f"Error: File '{filepath}' not found. Please ensure the CSV file is in the same folder as the script.")
-        return pd.DataFrame({'date': [], 'tvl': [], 'price': []}) 
+        while True:
+            print(f"Fetching chunk since timestamp {since_timestamp}...")
+            ohlcv_chunk = await gateio.fetch_ohlcv(ticker, '1d', since=since_timestamp, limit=limit)  
+            if not ohlcv_chunk:
+                print("No more data found for this period.")
+                break               
+            all_ohlcv.extend(ohlcv_chunk)
+            last_timestamp_ms = ohlcv_chunk[-1][0]
+            since_timestamp = last_timestamp_ms + 1 
+            print(f"Fetched {len(ohlcv_chunk)} candles up to {datetime.fromtimestamp(last_timestamp_ms/1000)}. Next fetch starts after this.")
+            await asyncio.sleep(gateio.rateLimit / 1000) 
+            
+    except ccxt.NetworkError as e: print(f"ccxt Network Error: {e}. Stopping fetch.")
+    except ccxt.ExchangeError as e: print(f"ccxt Exchange Error: {e}. Stopping fetch.")
+    except Exception as e: print(f"An unexpected error occurred during fetch: {e}")
+    finally:
+        print("Closing exchange connection...")
+        await gateio.close()
+    if not all_ohlcv: 
+        print(f"Warning: No price data fetched at all for {ticker}.")
+    else:
+        unique_timestamps = set()
+        unique_ohlcv = []
+        for candle in all_ohlcv:
+            if candle[0] not in unique_timestamps:
+                unique_ohlcv.append(candle)
+                unique_timestamps.add(candle[0])
+        print(f"Successfully fetched a total of {len(unique_ohlcv)} unique price data points.")
+        return unique_ohlcv
+    return [] 
+
+def process_and_merge(tvl_data_raw, price_data_raw):
+    print("Processing and merging data...")
+
+    if not tvl_data_raw:
+        print("Merge process cancelled: TVL data is empty.")
+        return pd.DataFrame()
+
+    processed_tvl = []
+    for item in tvl_data_raw:
+         try:
+             timestamp_sec = int(item[0])
+             value_float = float(item[1])
+             processed_tvl.append({'timestamp': timestamp_sec, 'tvl': value_float})
+         except (ValueError, IndexError, TypeError): pass 
+
+    if not processed_tvl:
+        print("Merge process cancelled: No valid TVL rows after processing.")
+        return pd.DataFrame()
+
+    df_tvl = pd.DataFrame(processed_tvl)
+    df_tvl['date'] = pd.to_datetime(df_tvl['timestamp'], unit='s').dt.normalize()
+    df_tvl = df_tvl[['date', 'tvl']] 
+
+    print(f"\n--- TVL Data Range ---")
+    print(f"Start Date: {df_tvl['date'].min()}")
+    print(f"End Date:   {df_tvl['date'].max()}")
+    print(f"Shape:      {df_tvl.shape}")
+
+    if not price_data_raw:
+        print("Merge process cancelled: Price data is empty.")
+        return pd.DataFrame()
+
+    df_price = pd.DataFrame(price_data_raw, columns=['timestamp_ms', 'open', 'high', 'low', 'price', 'volume'])
+    df_price = df_price[['timestamp_ms', 'price']]
+    df_price['date'] = pd.to_datetime(df_price['timestamp_ms'], unit='ms').dt.normalize()
+    df_price = df_price.drop(columns=['timestamp_ms'])
+
+    print(f"\n--- Price Data Range (from ccxt) ---")
+    print(f"Start Date: {df_price['date'].min()}")
+    print(f"End Date:   {df_price['date'].max()}")
+    print(f"Shape:      {df_price.shape}")
+
+    print("Merging TVL and Price data based on date...")
+    df_merged = pd.merge(df_tvl, df_price, on='date', how='inner')
+    df_merged['tvl'] = pd.to_numeric(df_merged['tvl'])
+    df_merged['price'] = pd.to_numeric(df_merged['price'])
+    df_merged = df_merged.sort_values(by='date').reset_index(drop=True)
+    print(f"Merge completed. Resulting data shape: {df_merged.shape}")
+    return df_merged
+
+async def scrape_aave_tvl_raw(url: str) -> list | None:
+    print(f"Attempting to fetch TVL data from: {url} (using cloudscraper)...")
+    scraper = cloudscraper.create_scraper(delay=10, browser='chrome')
+    warnings.filterwarnings("ignore", category=urllib3.exceptions.InsecureRequestWarning)
+    tvl_chart_data = None 
+
+    try:
+        loop = asyncio.get_running_loop()
+        response = await loop.run_in_executor(None, scraper.get, url)
+
+        if response.status_code == 200:
+            print("Successfully bypassed Cloudflare and downloaded HTML.")
+            soup = BeautifulSoup(response.text, 'html.parser')
+            script_tag = soup.find('script', {'id': '__NEXT_DATA__'})
+
+            if script_tag:
+                print("Successfully found __NEXT_DATA__ tag.")
+                try:
+                    json_data = json.loads(script_tag.string) #type: ignore
+                    tvl_chart_data = json_data.get('props', {}).get('pageProps', {}).get('tvlChartData', []) 
+
+                    if tvl_chart_data:
+                        print("Successfully extracted tvlChartData.")
+                    else:
+                        print("Warning: tvlChartData not found at path props -> pageProps.")
+                        tvl_chart_data = []
+                except json.JSONDecodeError:
+                    print("Error: Failed to parse JSON within __NEXT_DATA__.")
+                    tvl_chart_data = []
+            else:
+                print("Warning: Tag <script id='__NEXT_DATA__'> not found.")
+                tvl_chart_data = []
+        else:
+            print(f"Warning: Failed after Cloudflare. Status Code: {response.status_code}")
+            tvl_chart_data = []
+
     except Exception as e:
-        st.error(f"An error occurred while loading the data: {e}")
-        return pd.DataFrame({'date': [], 'tvl': [], 'price': []})
+        print(f"Error during process: {e}")
+        tvl_chart_data = []
+    finally:
+        if 'scraper' in locals():
+            scraper.close()
+
+    return tvl_chart_data
+
+async def fetch_all_data():
+    """Runs all async functions sequentially."""
+    print("Debug: Starting Step 1 - Fetching TVL data...")
+    tvl_url = "https://defillama.com/protocol/aave"
+    tvl_data_raw = await scrape_aave_tvl_raw(tvl_url)
+    
+    if not tvl_data_raw:
+        print("Debug: TVL data fetch failed.")
+        return None, None
+
+    print("Debug: Step 1 SUCCESS.")
+    print("Debug: Starting Step 2 - Finding oldest date...")
+    oldest_date_str = '2020-01-01'
+    try:
+        oldest_timestamp_sec = min(int(item[0]) for item in tvl_data_raw if item and len(item) > 0)
+        oldest_date = datetime.fromtimestamp(oldest_timestamp_sec)
+        oldest_date_str = oldest_date.strftime('%Y-%m-%d')
+        print(f"Debug: Step 2 SUCCESS. Oldest date found: {oldest_date_str}.")
+    except Exception as e:
+        print(f"Debug: Step 2 FAILED: {e}. Using default {oldest_date_str}.")
+    
+    print(f"Debug: Starting Step 3 - Fetching Price data since {oldest_date_str}...")
+    price_data_raw = await fetch_price_data('AAVE/USDT', oldest_date_str)
+    
+    if not price_data_raw:
+        print("Debug: Price data fetch failed.")
+        return tvl_data_raw, None
+
+    print("Debug: Step 3 SUCCESS.")
+    return tvl_data_raw, price_data_raw
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_master_data():
+    """
+    A synchronous wrapper function that runs the async fetch
+    and processes the data. This is what Streamlit caches.
+    """
+    st.session_state.just_fetched = True
+    print("CACHE MISS: Running async data fetching...")
+    
+    tvl_raw, price_raw = asyncio.run(fetch_all_data())
+    
+    if tvl_raw is None or price_raw is None:
+        st.error("Failed to fetch data from APIs. Please check logs.")
+        return pd.DataFrame()
+
+    print("Debug: Starting Step 4 - Processing and merging data...")
+    merged_df = process_and_merge(tvl_raw, price_raw)
+    
+    if merged_df.empty:
+        print("Debug: Step 4 WARNING. Merge result is empty.")
+    else:
+        print("Debug: Step 4 SUCCESS. Data processing complete. Storing in cache.")
+        
+    return merged_df
 
 def filter_dataframe(df, timeframe_option):
     """Filters DataFrame based on the selected timeframe."""
@@ -192,7 +304,85 @@ def display_bidirectional_progress(col, corr_value):
     
     col.markdown(html_code, unsafe_allow_html=True)
 
-df_full = load_data()
+with st.spinner("Please wait, fetching the latest data from DefiLlama and Gate.io (via ccxt)..."):
+    df_full = load_master_data()
+
+
+if 'just_fetched' in st.session_state and st.session_state.just_fetched:
+    st.toast("Data successfully loaded!",duration=3)
+    
+    st.session_state.just_fetched = False
+
+
+st.set_page_config(layout="wide", page_title="AAVE TVL vs Price Analysis")
+
+st.markdown("""
+<style>
+div.stRadio > div[role="radiogroup"] {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid #444;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    width: fit-content; 
+    margin: 0 auto; 
+}
+            
+div.stRadio > div[role="radiogroup"] > label {
+    display: flex !important;      
+    align-items: center !important;  
+    justify-content: center !important;
+    
+    padding: 0.5rem 1rem;
+    margin: 0;
+    border: none;
+    border-right: 1px solid #444;
+    background-color: transparent;
+    color: #CCC;
+    cursor: pointer;
+    transition: background-color 0.3s ease, color 0.3s ease;   
+}
+            
+div.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"] > div{
+    display: flex;
+    align-items: center !important;  
+    justify-content: center !important;
+}
+            
+div.stRadio > div[role="radiogroup"] > label:last-child {
+    border-right: none;
+}
+
+div.stRadio > div[role="radiogroup"] > label > div[data-testid="stMarkdownContainer"] > p {
+    margin-bottom: 0 !important; 
+}
+            
+div.stRadio > div[role="radiogroup"] > label[aria-checked="true"] {
+    background-color: #007bff !important; 
+    color: white !important;
+}
+            
+div.stRadio > div[role="radiogroup"] > label:hover {
+    background-color: #333;
+}
+            
+div.stRadio > div > label > div:first-child {
+    display: none !important;
+}
+            
+div.stRadio input[type="radio"] {
+    display: none !important;
+}
+
+div.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"]:has(input:checked) {
+    background-color: #007bff !important;
+    color: white !important;
+    border-color: #007bff !important; 
+}                     
+</style>
+""", unsafe_allow_html=True)
 
 if df_full.empty:
     st.warning("Could not load data. Please check the CSV file.")
@@ -220,7 +410,7 @@ with col_method:
             """
             **What this application does:**
 
-            1.  **Loads Data:** Reads the pre-processed CSV file containing daily Aave TVL (scraped from [DefiLlama's initial HTML](https://defillama.com/protocol/aave)) and [AAVE/USDT price data](https://www.gate.com/trade/AAVE_USDT) (fetched from Gate via `ccxt`).
+            1.  **Loads Data:** Reads the pre-processed CSV file containing daily Aave TVL (scraped from [DefiLlama's initial HTML](https://defillama.com/protocol/aave)) and [AAVE/USDT price data](https://www.gate.com/trade/AAVE_USDT) (fetched from Gate.io via `ccxt`).
             2.  **Filters Data:** Allows you to select a specific timeframe (e.g., 1 Year, 1 Month) to focus the analysis.
             3.  **Visualizes:** Displays a dual-axis line chart showing how TVL (orange, right axis) and Price (blue, left axis) have moved together over the selected period.
             4.  **Calculates Correlation:** Computes the Pearson correlation coefficient between TVL and Price for the chosen timeframe. This measures the *linear* relationship between the two variables.

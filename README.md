@@ -2,7 +2,7 @@
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://aave-tvl-price.streamlit.app/#aave-tvl-vs-price-correlation-analysis)
 
- An interactive Streamlit application testing the daily correlation between Aave protocol's Total Value Locked (TVL) and the AAVE token price. This project utilizes web scraping, API data, and quantitative analysis techniques to uncover potential Alpha signals in the DeFi space.
+An interactive Streamlit application testing the daily correlation between Aave protocol's Total Value Locked (TVL) and the AAVE token price. This project utilizes web scraping, API data, and quantitative analysis techniques to uncover potential Alpha signals in the DeFi space.
 
 ![Dashboard Screenshot](preview.jpg) 
 
@@ -61,11 +61,14 @@
 ### Installation:
 
 1.  Clone this repository:
+   
     ```bash
-    git clone [https://github.com/wendytj/aave-tvl-price.git](https://github.com/wendytj/aave-tvl-price.git) # GANTI DENGAN URL REPO ANDA
-    cd aave-tvl-price # GANTI DENGAN NAMA FOLDER ANDA
+    git clone [https://github.com/wendytj/aave-tvl-price.git](https://github.com/wendytj/aave-tvl-price.git)
+    cd aave-tvl-price
     ```
+    
 2.  Install dependencies:
+   
     ```bash
     pip install -r requirements.txt
     ```
@@ -73,13 +76,17 @@
 ### Usage:
 
 1.  *(Optional)* Run the scraper manually to generate/update the initial CSV:
+
     ```bash
-    python scraper.py # GANTI NAMA FILE JIKA BERBEDA
+    python scraper.py 
     ```
+    
 2.  Run the Streamlit dashboard:
+   
     ```bash
     streamlit run app.py
     ```
+    
     (The app will open in your browser).
 
 ---
@@ -87,7 +94,7 @@
 ## 🤝 Connect & Explore Further
 
 * **View Live Dashboard:** **[https://aave-tvl-price.streamlit.app/](https://aave-tvl-price.streamlit.app/#aave-tvl-vs-price-correlation-analysis)**
-* **Author LinkedIn:** [**https://www.linkedin.com/in/wendy-tjung-52578531b/**](https://www.linkedin.com/in/wendy-tjung-52578531b/)
+* **Author LinkedIn:** **[https://www.linkedin.com/in/wendy-tjung/](https://www.linkedin.com/in/wendy-tjung/)**
 * **Methodology Deep Dive,  Read a detailed breakdown on Medium:** [Coming Soon]()
 
 ---

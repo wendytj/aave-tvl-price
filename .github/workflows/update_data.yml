@@ -28,6 +28,13 @@ jobs:
       - name: Run the scraper script
         run: |
           python scraper.py
+          
+      - name: Check file status before commit
+        run: |
+          echo "Running 'git status' to see changes..."
+          git status
+          echo "Checking file timestamp..."
+          ls -l aave_tvl_vs_price_merged.csv
 
       - name: Commit and push changes (the updated CSV file)
         uses: stefanzweifel/git-auto-commit-action@v5

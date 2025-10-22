@@ -35,7 +35,7 @@
 ### Data Pipeline Architecture:
 
 1.  **TVL Acquisition:** Historical TVL data for Aave is extracted from the `__NEXT_DATA__` JSON embedded within DefiLlama's HTML. The process uses the **`cloudscraper`** library to bypass **Cloudflare's** JS challenges and bot detection.
-2.  **Price Acquisition:** Daily OHLCV price data for the `AAVE/USDT` pair is fetched reliably from the **Binance** API using the **`ccxt`** library, implementing looping to retrieve the full history since the earliest TVL date.
+2.  **Price Acquisition:** Daily OHLCV price data for the `AAVE/USDT` pair is fetched reliably from the **Gate** API using the **`ccxt`** library, implementing looping to retrieve the full history since the earliest TVL date.
 3.  **Data Engineering:** The two datasets are cleaned, standardized (timestamps converted to dates), and merged into a single daily time series using **Pandas** (`pd.merge(how='inner')`).
 4.  **Automation:** The entire pipeline is scheduled to run daily at **03:00 UTC** via **GitHub Actions**. The updated `aave_tvl_vs_price_merged.csv` is automatically committed back to this repository.
 5.  **Visualization:** The Streamlit app (`app.py`) reads the latest committed CSV, calculates correlations dynamically based on user-selected timeframes, and displays the interactive Plotly chart and metrics.

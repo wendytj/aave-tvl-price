@@ -220,7 +220,7 @@ with col_method:
             """
             **What this application does:**
 
-            1.  **Loads Data:** Reads the pre-processed CSV file containing daily Aave TVL (scraped from [DefiLlama's initial HTML](https://defillama.com/protocol/aave)) and [AAVE/USDT price data](https://www.binance.com/en/trade/AAVE_USDT?type=spot) (fetched from Binance via `ccxt`).
+            1.  **Loads Data:** Reads the pre-processed CSV file containing daily Aave TVL (scraped from [DefiLlama's initial HTML](https://defillama.com/protocol/aave)) and [AAVE/USDT price data](https://www.gate.com/trade/AAVE_USDT) (fetched from Gate via `ccxt`).
             2.  **Filters Data:** Allows you to select a specific timeframe (e.g., 1 Year, 1 Month) to focus the analysis.
             3.  **Visualizes:** Displays a dual-axis line chart showing how TVL (orange, right axis) and Price (blue, left axis) have moved together over the selected period.
             4.  **Calculates Correlation:** Computes the Pearson correlation coefficient between TVL and Price for the chosen timeframe. This measures the *linear* relationship between the two variables.

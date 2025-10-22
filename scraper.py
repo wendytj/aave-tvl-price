@@ -8,36 +8,39 @@ import pandas as pd
 from datetime import datetime
 import ccxt.async_support as ccxt
 
+import ccxt.async_support as ccxt # Pastikan Anda mengimpor versi async
+import asyncio
+from datetime import datetime
+
 async def fetch_price_data(ticker='AAVE/USDT', start_date_str='2020-01-01'): 
-    print(f"Fetching ALL historical {ticker} price data from Binance since {start_date_str}...")
-    binance = ccxt.binance()
+    print(f"Fetching ALL historical {ticker} price data from Gate.io since {start_date_str}...")
+    
+    gateio = ccxt.gateio()
+    
     all_ohlcv = []
     since_timestamp = int(datetime.strptime(start_date_str, '%Y-%m-%d').timestamp() * 1000)
     limit = 1000 
     try:
-        api_desc = binance.describe().get('api', {})
-        klines_desc = api_desc.get('publicGetKlines', {})
-        limits_desc = klines_desc.get('limits', {})
-        limit = limits_desc.get('limit', 1000)
-    except Exception:
-        pass
-    try:
         while True:
             print(f"Fetching chunk since timestamp {since_timestamp}...")
-            ohlcv_chunk = await binance.fetch_ohlcv(ticker, '1d', since=since_timestamp, limit=limit)
+            ohlcv_chunk = await gateio.fetch_ohlcv(ticker, '1d', since=since_timestamp, limit=limit)  
             if not ohlcv_chunk:
                 print("No more data found for this period.")
-                break
+                break               
             all_ohlcv.extend(ohlcv_chunk)
             last_timestamp_ms = ohlcv_chunk[-1][0]
             since_timestamp = last_timestamp_ms + 1 
             print(f"Fetched {len(ohlcv_chunk)} candles up to {datetime.fromtimestamp(last_timestamp_ms/1000)}. Next fetch starts after this.")
-            await asyncio.sleep(binance.rateLimit / 1000) 
+            await asyncio.sleep(gateio.rateLimit / 1000) 
+            
     except ccxt.NetworkError as e: print(f"ccxt Network Error: {e}. Stopping fetch.")
     except ccxt.ExchangeError as e: print(f"ccxt Exchange Error: {e}. Stopping fetch.")
     except Exception as e: print(f"An unexpected error occurred during fetch: {e}")
-    finally: await binance.close()
-    if not all_ohlcv: print(f"Warning: No price data fetched at all for {ticker}.")
+    finally:
+        print("Closing exchange connection...")
+        await gateio.close()
+    if not all_ohlcv: 
+        print(f"Warning: No price data fetched at all for {ticker}.")
     else:
         unique_timestamps = set()
         unique_ohlcv = []
@@ -47,7 +50,7 @@ async def fetch_price_data(ticker='AAVE/USDT', start_date_str='2020-01-01'):
                 unique_timestamps.add(candle[0])
         print(f"Successfully fetched a total of {len(unique_ohlcv)} unique price data points.")
         return unique_ohlcv
-    return []
+    return [] 
 
 def process_and_merge(tvl_data_raw, price_data_raw):
     print("Processing and merging data...")

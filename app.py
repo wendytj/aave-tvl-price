@@ -384,6 +384,9 @@ div.stRadio > div[role="radiogroup"] > label[data-baseweb="radio"]:has(input:che
 </style>
 """, unsafe_allow_html=True)
 
+max_date = datetime.today()
+min_date = max_date - timedelta(days=365)
+
 if df_full.empty:
     st.warning("Could not load data. Please check the CSV file.")
 else:

@@ -95,6 +95,6 @@ An interactive Streamlit application testing the daily correlation between Aave 
 
 * **View Live Dashboard:** **[https://aave-tvl-price.streamlit.app/](https://aave-tvl-price.streamlit.app/#aave-tvl-vs-price-correlation-analysis)**
 * **Author LinkedIn:** **[https://www.linkedin.com/in/wendy-tjung/](https://www.linkedin.com/in/wendy-tjung/)**
-* **Methodology Deep Dive,  Read a detailed breakdown on Medium:** [Coming Soon]()
+* **Methodology Deep Dive,  Read a detailed breakdown on Medium:** [https://wendytj.medium.com/how-i-built-a-live-defi-dashboard-scraping-defillama-and-ccxt-with-python-and-streamlit-ae6ab43c9127](https://wendytj.medium.com/how-i-built-a-live-defi-dashboard-scraping-defillama-and-ccxt-with-python-and-streamlit-ae6ab43c9127)
 
 ---
